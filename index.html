@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lo-fi Chill Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    min-height: 100vh;
+    color: #e0d6ff;
+    overflow-x: hidden;
+  }
+
+  #rain-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app-container {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Custom range slider */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.1);
+    outline: none;
+    transition: background 0.3s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #c084fc;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(192, 132, 252, 0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 20px rgba(192, 132, 252, 0.8);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #c084fc;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 10px rgba(192, 132, 252, 0.5);
+  }
+
+  .sound-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 20px;
+    transition: all 0.3s ease;
+  }
+
+  .sound-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(192, 132, 252, 0.3);
+  }
+
+  .sound-card.active {
+    border-color: rgba(192, 132, 252, 0.5);
+    box-shadow: 0 0 30px rgba(192, 132, 252, 0.1);
+  }
+
+  .toggle-btn {
+    width: 48px;
+    height: 28px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.3s;
+  }
+
+  .toggle-btn.active {
+    background: #7c3aed;
+  }
+
+  .toggle-btn::after {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: white;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.3s;
+  }
+
+  .toggle-btn.active::after {
+    transform: translateX(20px);
+  }
+
+  .preset-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 10px 18px;
+    color: #e0d6ff;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: inherit;
+    font-size: 14px;
+  }
+
+  .preset-btn:hover {
+    background: rgba(192, 132, 252, 0.2);
+    border-color: rgba(192, 132, 252, 0.4);
+  }
+
+  .glow-text {
+    text-shadow: 0 0 40px rgba(192, 132, 252, 0.4);
+  }
+
+  .clock {
+    font-size: 4rem;
+    font-weight: 300;
+    letter-spacing: 0.1em;
+    opacity: 0.6;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .float-anim {
+    animation: float 4s ease-in-out infinite;
+  }
+
+  .master-slider input[type="range"]::-webkit-slider-thumb {
+    background: #f59e0b;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+  }
+
+  .master-slider input[type="range"]::-moz-range-thumb {
+    background: #f59e0b;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+  }
+
+  .save-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  .save-modal-inner {
+    background: #1e1b4b;
+    border: 1px solid rgba(192, 132, 252, 0.3);
+    border-radius: 20px;
+    padding: 30px;
+    width: 90%;
+    max-width: 400px;
+  }
+
+  .save-modal input[type="text"] {
+    width: 100%;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: #e0d6ff;
+    font-family: inherit;
+    font-size: 16px;
+    outline: none;
+    margin: 16px 0;
+  }
+
+  .save-modal input[type="text"]:focus {
+    border-color: #c084fc;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="rain-canvas"></canvas>
+
+<div class="app-container min-h-screen flex flex-col items-center px-4 py-8">
+
+  <!-- Header -->
+  <header class="text-center mb-8">
+    <h1 class="text-3xl md:text-4xl font-light tracking-widest glow-text mb-2 float-anim">
+      Lo-fi Chill Generator
+    </h1>
+    <div id="clock" class="clock glow-text"></div>
+    <p class="text-sm opacity-40 mt-2 tracking-wider">ambient sounds for your soul</p>
+  </header>
+
+  <!-- Master Volume -->
+  <div class="w-full max-w-2xl mb-8 master-slider">
+    <div class="sound-card flex items-center gap-4">
+      <span class="text-2xl">🎛️</span>
+      <span class="text-sm tracking-wider opacity-70 w-24">MASTER</span>
+      <input type="range" id="master-volume" min="0" max="100" value="70" class="flex-1">
+      <span id="master-value" class="text-sm opacity-50 w-10 text-right">70%</span>
+    </div>
+  </div>
+
+  <!-- Sound Grid -->
+  <div class="w-full max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-4 mb-8" id="sound-grid">
+    <!-- Cards are generated by JS -->
+  </div>
+
+  <!-- Presets -->
+  <div class="w-full max-w-2xl mb-8">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm tracking-widest opacity-50 uppercase">Presets</h2>
+      <button onclick="showSaveModal()" class="preset-btn text-xs">💾 Save Current</button>
+    </div>
+    <div id="preset-list" class="flex flex-wrap gap-2">
+      <!-- Built-in presets -->
+      <button class="preset-btn" onclick="loadBuiltinPreset('rainy-cafe')">☕ Rainy Café</button>
+      <button class="preset-btn" onclick="loadBuiltinPreset('forest-night')">🌲 Forest Night</button>
+      <button class="preset-btn" onclick="loadBuiltinPreset('cozy-fireplace')">🔥 Cozy Fireplace</button>
+      <button class="preset-btn" onclick="loadBuiltinPreset('deep-focus')">🎧 Deep Focus</button>
+    </div>
+    <div id="user-presets" class="flex flex-wrap gap-2 mt-2"></div>
+  </div>
+
+  <!-- Start prompt -->
+  <div id="start-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm cursor-pointer" onclick="initAudio()">
+    <div class="text-center">
+      <div class="text-6xl mb-6 float-anim">🎧</div>
+      <p class="text-xl tracking-widest glow-text">Click to Start</p>
+      <p class="text-sm opacity-40 mt-2">tap anywhere to begin your session</p>
+    </div>
+  </div>
+</div>
+
+<!-- Save Modal (hidden) -->
+<div id="save-modal" class="save-modal" style="display:none" onclick="if(event.target===this)hideSaveModal()">
+  <div class="save-modal-inner">
+    <h3 class="text-lg tracking-wider">Save Preset</h3>
+    <input type="text" id="preset-name-input" placeholder="Preset name..." maxlength="30" onkeydown="if(event.key==='Enter')savePreset()">
+    <div class="flex gap-2 justify-end">
+      <button class="preset-btn" onclick="hideSaveModal()">Cancel</button>
+      <button class="preset-btn" style="background:rgba(124,58,237,0.4)" onclick="savePreset()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Sound Definitions
+// ============================================================
+const SOUNDS = [
+  { id: 'rain',      name: 'Rain',       icon: '🌧️', color: '#60a5fa' },
+  { id: 'fire',      name: 'Fireplace',  icon: '🔥', color: '#f59e0b' },
+  { id: 'cafe',      name: 'Café',       icon: '☕', color: '#a78bfa' },
+  { id: 'wind',      name: 'Wind',       icon: '🍃', color: '#34d399' },
+  { id: 'birds',     name: 'Birds',      icon: '🐦', color: '#fb923c' },
+  { id: 'lofi',      name: 'Lo-fi Beat', icon: '🎵', color: '#f472b6' },
+  { id: 'thunder',   name: 'Thunder',    icon: '⛈️', color: '#818cf8' },
+  { id: 'waves',     name: 'Waves',      icon: '🌊', color: '#22d3ee' },
+];
+
+const BUILTIN_PRESETS = {
+  'rainy-cafe':      { rain: 65, fire: 0, cafe: 40, wind: 10, birds: 0, lofi: 30, thunder: 15, waves: 0 },
+  'forest-night':    { rain: 20, fire: 0, cafe: 0, wind: 30, birds: 45, lofi: 0, thunder: 0, waves: 0 },
+  'cozy-fireplace':  { rain: 30, fire: 70, cafe: 0, wind: 10, birds: 0, lofi: 25, thunder: 0, waves: 0 },
+  'deep-focus':      { rain: 40, fire: 0, cafe: 0, wind: 0, birds: 0, lofi: 50, thunder: 0, waves: 20 },
+};
+
+let audioCtx = null;
+let masterGain = null;
+let soundNodes = {};
+let soundStates = {};
+
+// ============================================================
+// UI Generation
+// ============================================================
+function buildSoundGrid() {
+  const grid = document.getElementById('sound-grid');
+  SOUNDS.forEach(s => {
+    soundStates[s.id] = { active: false, volume: 0 };
+    const card = document.createElement('div');
+    card.className = 'sound-card';
+    card.id = `card-${s.id}`;
+    card.innerHTML = `
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl">${s.icon}</span>
+          <span class="text-sm tracking-wider">${s.name}</span>
+        </div>
+        <button class="toggle-btn" id="toggle-${s.id}" onclick="toggleSound('${s.id}')"></button>
+      </div>
+      <div class="flex items-center gap-3">
+        <input type="range" min="0" max="100" value="0" id="vol-${s.id}"
+               oninput="setVolume('${s.id}', this.value)">
+        <span class="text-xs opacity-40 w-8 text-right" id="val-${s.id}">0%</span>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+buildSoundGrid();
+
+// ============================================================
+// Clock
+// ============================================================
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('clock').textContent = `${h}:${m}`;
+}
+updateClock();
+setInterval(updateClock, 10000);
+
+// ============================================================
+// Rain Canvas Animation
+// ============================================================
+const canvas = document.getElementById('rain-canvas');
+const ctx = canvas.getContext('2d');
+let drops = [];
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function initDrops(count) {
+  drops = [];
+  for (let i = 0; i < count; i++) {
+    drops.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      len: Math.random() * 18 + 6,
+      speed: Math.random() * 4 + 2,
+      opacity: Math.random() * 0.15 + 0.05,
+    });
+  }
+}
+initDrops(120);
+
+function animateRain() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const rainVol = soundStates.rain ? soundStates.rain.volume / 100 : 0;
+  const intensity = rainVol;
+
+  drops.forEach(d => {
+    if (intensity <= 0) return;
+    ctx.beginPath();
+    ctx.moveTo(d.x, d.y);
+    ctx.lineTo(d.x + 0.5, d.y + d.len * intensity);
+    ctx.strokeStyle = `rgba(174, 194, 224, ${d.opacity * intensity})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    d.y += d.speed * intensity * 2;
+    d.x += 0.3;
+    if (d.y > canvas.height) {
+      d.y = -d.len;
+      d.x = Math.random() * canvas.width;
+    }
+  });
+  requestAnimationFrame(animateRain);
+}
+animateRain();
+
+// ============================================================
+// Web Audio API - Sound Generators
+// ============================================================
+function initAudio() {
+  if (audioCtx) return;
+  document.getElementById('start-overlay').style.display = 'none';
+
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.7;
+  masterGain.connect(audioCtx.destination);
+
+  // Initialize all sound generators
+  SOUNDS.forEach(s => {
+    soundNodes[s.id] = createSoundEngine(s.id);
+  });
+
+  // Load last session
+  loadFromStorage();
+}
+
+function createSoundEngine(id) {
+  const gain = audioCtx.createGain();
+  gain.gain.value = 0;
+  gain.connect(masterGain);
+
+  let started = false;
+  let nodes = [];
+
+  function start() {
+    if (started) return;
+    started = true;
+    switch(id) {
+      case 'rain':    nodes = startRain(gain); break;
+      case 'fire':    nodes = startFire(gain); break;
+      case 'cafe':    nodes = startCafe(gain); break;
+      case 'wind':    nodes = startWind(gain); break;
+      case 'birds':   nodes = startBirds(gain); break;
+      case 'lofi':    nodes = startLofi(gain); break;
+      case 'thunder': nodes = startThunder(gain); break;
+      case 'waves':   nodes = startWaves(gain); break;
+    }
+  }
+
+  function stop() {
+    if (!started) return;
+    started = false;
+    nodes.forEach(n => { try { n.stop(); } catch(e) {} try { n.disconnect(); } catch(e) {} });
+    nodes = [];
+  }
+
+  return { gain, start, stop, isStarted: () => started };
+}
+
+// --- Noise generator utility ---
+function createNoise(type) {
+  const bufferSize = audioCtx.sampleRate * 2;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+
+  if (type === 'white') {
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  } else if (type === 'brown') {
+    let last = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const w = Math.random() * 2 - 1;
+      data[i] = (last + 0.02 * w) / 1.02;
+      last = data[i];
+      data[i] *= 3.5;
+    }
+  } else if (type === 'pink') {
+    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for (let i = 0; i < bufferSize; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99886*b0 + w*0.0555179;
+      b1 = 0.99332*b1 + w*0.0750759;
+      b2 = 0.96900*b2 + w*0.1538520;
+      b3 = 0.86650*b3 + w*0.3104856;
+      b4 = 0.55000*b4 + w*0.5329522;
+      b5 = -0.7616*b5 - w*0.0168980;
+      data[i] = (b0+b1+b2+b3+b4+b5+b6+w*0.5362) * 0.11;
+      b6 = w * 0.115926;
+    }
+  }
+
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+  return source;
+}
+
+// --- Rain ---
+function startRain(dest) {
+  const noise = createNoise('pink');
+  const hp = audioCtx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 400;
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 8000;
+
+  noise.connect(hp);
+  hp.connect(lp);
+  lp.connect(dest);
+  noise.start();
+  return [noise];
+}
+
+// --- Fireplace ---
+function startFire(dest) {
+  const noise = createNoise('brown');
+  const bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 600; bp.Q.value = 0.8;
+  const crackle = createNoise('white');
+  const crackleGain = audioCtx.createGain();
+  crackleGain.gain.value = 0.15;
+  const crackleFilter = audioCtx.createBiquadFilter();
+  crackleFilter.type = 'highpass'; crackleFilter.frequency.value = 2000;
+
+  // Modulate crackle
+  const lfo = audioCtx.createOscillator();
+  lfo.frequency.value = 0.5;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 0.12;
+  lfo.connect(lfoGain);
+  lfoGain.connect(crackleGain.gain);
+  lfo.start();
+
+  noise.connect(bp);
+  bp.connect(dest);
+  crackle.connect(crackleFilter);
+  crackleFilter.connect(crackleGain);
+  crackleGain.connect(dest);
+  noise.start();
+  crackle.start();
+  return [noise, crackle, lfo];
+}
+
+// --- Café ---
+function startCafe(dest) {
+  const noise = createNoise('brown');
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 2000;
+  const hp = audioCtx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 200;
+  // Subtle murmur modulation
+  const lfo = audioCtx.createOscillator();
+  lfo.frequency.value = 0.15;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 300;
+  lfo.connect(lfoGain);
+  lfoGain.connect(lp.frequency);
+  lfo.start();
+
+  // Add slight high chatter
+  const chatter = createNoise('pink');
+  const chatterFilter = audioCtx.createBiquadFilter();
+  chatterFilter.type = 'bandpass'; chatterFilter.frequency.value = 1500; chatterFilter.Q.value = 1.5;
+  const chatterGain = audioCtx.createGain();
+  chatterGain.gain.value = 0.25;
+
+  noise.connect(lp);
+  lp.connect(hp);
+  hp.connect(dest);
+  chatter.connect(chatterFilter);
+  chatterFilter.connect(chatterGain);
+  chatterGain.connect(dest);
+  noise.start();
+  chatter.start();
+  return [noise, chatter, lfo];
+}
+
+// --- Wind ---
+function startWind(dest) {
+  const noise = createNoise('brown');
+  const bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 500; bp.Q.value = 0.5;
+  // Slow howling modulation
+  const lfo = audioCtx.createOscillator();
+  lfo.frequency.value = 0.08;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 400;
+  lfo.connect(lfoGain);
+  lfoGain.connect(bp.frequency);
+  lfo.start();
+
+  noise.connect(bp);
+  bp.connect(dest);
+  noise.start();
+  return [noise, lfo];
+}
+
+// --- Birds ---
+function startBirds(dest) {
+  const nodes = [];
+  // Create a few chirping oscillators with random scheduling
+  function chirp() {
+    if (!soundNodes.birds || !soundNodes.birds.isStarted()) return;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    const freq = 2000 + Math.random() * 3000;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(freq * (0.7 + Math.random() * 0.6), audioCtx.currentTime + 0.1);
+    g.gain.setValueAtTime(0, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 0.02);
+    g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.08 + Math.random() * 0.1);
+    osc.connect(g);
+    g.connect(dest);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.2);
+    setTimeout(chirp, 300 + Math.random() * 2000);
+  }
+  // Start multiple chirp chains
+  for (let i = 0; i < 3; i++) {
+    setTimeout(chirp, Math.random() * 1500);
+  }
+  // Background ambient tone
+  const bg = createNoise('pink');
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 3000;
+  const bgGain = audioCtx.createGain();
+  bgGain.gain.value = 0.05;
+  bg.connect(lp); lp.connect(bgGain); bgGain.connect(dest);
+  bg.start();
+  nodes.push(bg);
+  return nodes;
+}
+
+// --- Lo-fi Beat ---
+function startLofi(dest) {
+  const nodes = [];
+  const bpm = 72;
+  const stepTime = 60 / bpm / 2;
+  let step = 0;
+  let running = true;
+
+  // Lo-fi chord pad
+  const padGain = audioCtx.createGain();
+  padGain.gain.value = 0.08;
+  padGain.connect(dest);
+
+  const chords = [
+    [261.6, 329.6, 392.0],  // C
+    [220.0, 277.2, 329.6],  // Am
+    [246.9, 311.1, 370.0],  // B dim-ish
+    [196.0, 246.9, 293.7],  // G
+  ];
+
+  let chordIdx = 0;
+  let padOscs = [];
+
+  function setChord(idx) {
+    padOscs.forEach(o => { try { o.stop(); } catch(e) {} });
+    padOscs = [];
+    chords[idx].forEach(f => {
+      const o = audioCtx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = f;
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 800;
+      o.connect(lp);
+      lp.connect(padGain);
+      o.start();
+      padOscs.push(o);
+    });
+  }
+  setChord(0);
+
+  function playStep() {
+    if (!running) return;
+    if (!soundNodes.lofi || !soundNodes.lofi.isStarted()) { running = false; return; }
+
+    const t = audioCtx.currentTime;
+
+    // Kick on beats 0, 8
+    if (step % 16 === 0 || step % 16 === 8) {
+      const osc = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      osc.frequency.setValueAtTime(150, t);
+      osc.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+      g.gain.setValueAtTime(0.35, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      osc.connect(g); g.connect(dest);
+      osc.start(t); osc.stop(t + 0.3);
+    }
+
+    // Snare on beats 4, 12
+    if (step % 16 === 4 || step % 16 === 12) {
+      const bufSize = audioCtx.sampleRate * 0.15;
+      const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) d[i] = Math.random() * 2 - 1;
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.18, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      const f = audioCtx.createBiquadFilter();
+      f.type = 'bandpass'; f.frequency.value = 3000;
+      src.connect(f); f.connect(g); g.connect(dest);
+      src.start(t);
+    }
+
+    // Hi-hat on every other step
+    if (step % 2 === 0) {
+      const bufSize = audioCtx.sampleRate * 0.05;
+      const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) d[i] = Math.random() * 2 - 1;
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      const g = audioCtx.createGain();
+      const vel = (step % 4 === 0) ? 0.06 : 0.03;
+      g.gain.setValueAtTime(vel, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+      const hp = audioCtx.createBiquadFilter();
+      hp.type = 'highpass'; hp.frequency.value = 7000;
+      src.connect(hp); hp.connect(g); g.connect(dest);
+      src.start(t);
+    }
+
+    // Change chord every 2 bars
+    if (step % 32 === 0) {
+      chordIdx = (chordIdx + 1) % chords.length;
+      setChord(chordIdx);
+    }
+
+    step++;
+    setTimeout(playStep, stepTime * 1000);
+  }
+
+  playStep();
+  nodes.push(...padOscs);
+  // Return a stoppable interface
+  const origStop = () => { running = false; padOscs.forEach(o => { try { o.stop(); } catch(e) {} }); };
+  nodes.stop = origStop;
+  return nodes;
+}
+
+// --- Thunder ---
+function startThunder(dest) {
+  const nodes = [];
+  const noise = createNoise('brown');
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 200;
+  const g = audioCtx.createGain();
+  g.gain.value = 0.6;
+
+  // Rumble modulation
+  const lfo = audioCtx.createOscillator();
+  lfo.frequency.value = 0.03;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 0.5;
+  lfo.connect(lfoGain);
+  lfoGain.connect(g.gain);
+  lfo.start();
+
+  noise.connect(lp);
+  lp.connect(g);
+  g.connect(dest);
+  noise.start();
+
+  // Random thunder cracks
+  function crack() {
+    if (!soundNodes.thunder || !soundNodes.thunder.isStarted()) return;
+    const bufSize = audioCtx.sampleRate * 0.8;
+    const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    let v = 0;
+    for (let i = 0; i < bufSize; i++) {
+      v += (Math.random() * 2 - 1) * 0.01;
+      v *= 0.998;
+      d[i] = v * 20 * Math.exp(-i / (audioCtx.sampleRate * 0.3));
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const cg = audioCtx.createGain();
+    cg.gain.value = 0.4;
+    const clp = audioCtx.createBiquadFilter();
+    clp.type = 'lowpass'; clp.frequency.value = 500;
+    src.connect(clp); clp.connect(cg); cg.connect(dest);
+    src.start();
+    setTimeout(crack, 5000 + Math.random() * 15000);
+  }
+  setTimeout(crack, 2000 + Math.random() * 5000);
+
+  nodes.push(noise, lfo);
+  return nodes;
+}
+
+// --- Waves ---
+function startWaves(dest) {
+  const noise = createNoise('brown');
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 600;
+
+  // Slow wave motion
+  const lfo = audioCtx.createOscillator();
+  lfo.frequency.value = 0.1;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 0.4;
+  lfo.connect(lfoGain);
+  lfoGain.connect(noise.playbackRate);
+
+  // Second layer
+  const noise2 = createNoise('pink');
+  const lp2 = audioCtx.createBiquadFilter();
+  lp2.type = 'lowpass'; lp2.frequency.value = 1200;
+  const g2 = audioCtx.createGain();
+  g2.gain.value = 0.15;
+  const lfo2 = audioCtx.createOscillator();
+  lfo2.frequency.value = 0.07;
+  const lfo2Gain = audioCtx.createGain();
+  lfo2Gain.gain.value = 0.15;
+  lfo2.connect(lfo2Gain);
+  lfo2Gain.connect(g2.gain);
+  lfo2.start();
+
+  noise.connect(lp); lp.connect(dest);
+  noise2.connect(lp2); lp2.connect(g2); g2.connect(dest);
+  noise.start();
+  noise2.start();
+  lfo.start();
+
+  return [noise, noise2, lfo, lfo2];
+}
+
+// ============================================================
+// Controls
+// ============================================================
+function toggleSound(id) {
+  const state = soundStates[id];
+  state.active = !state.active;
+  const btn = document.getElementById(`toggle-${id}`);
+  const card = document.getElementById(`card-${id}`);
+  const slider = document.getElementById(`vol-${id}`);
+
+  if (state.active) {
+    btn.classList.add('active');
+    card.classList.add('active');
+    if (state.volume === 0) {
+      state.volume = 50;
+      slider.value = 50;
+      document.getElementById(`val-${id}`).textContent = '50%';
+    }
+    soundNodes[id].start();
+    soundNodes[id].gain.gain.linearRampToValueAtTime(state.volume / 100, audioCtx.currentTime + 0.3);
+  } else {
+    btn.classList.remove('active');
+    card.classList.remove('active');
+    soundNodes[id].gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+    setTimeout(() => {
+      if (!soundStates[id].active) soundNodes[id].stop();
+      // Recreate for next start
+      if (!soundStates[id].active) soundNodes[id] = createSoundEngine(id);
+    }, 500);
+  }
+  saveToStorage();
+}
+
+function setVolume(id, val) {
+  val = parseInt(val);
+  soundStates[id].volume = val;
+  document.getElementById(`val-${id}`).textContent = val + '%';
+
+  if (val > 0 && !soundStates[id].active) {
+    soundStates[id].active = true;
+    document.getElementById(`toggle-${id}`).classList.add('active');
+    document.getElementById(`card-${id}`).classList.add('active');
+    soundNodes[id].start();
+  }
+
+  if (val === 0 && soundStates[id].active) {
+    soundStates[id].active = false;
+    document.getElementById(`toggle-${id}`).classList.remove('active');
+    document.getElementById(`card-${id}`).classList.remove('active');
+    soundNodes[id].gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+    setTimeout(() => {
+      soundNodes[id].stop();
+      soundNodes[id] = createSoundEngine(id);
+    }, 200);
+    saveToStorage();
+    return;
+  }
+
+  if (soundNodes[id] && soundNodes[id].gain) {
+    soundNodes[id].gain.gain.linearRampToValueAtTime(val / 100, audioCtx.currentTime + 0.1);
+  }
+  saveToStorage();
+}
+
+// Master volume
+document.getElementById('master-volume').addEventListener('input', function() {
+  const val = parseInt(this.value);
+  document.getElementById('master-value').textContent = val + '%';
+  if (masterGain) {
+    masterGain.gain.linearRampToValueAtTime(val / 100, audioCtx.currentTime + 0.1);
+  }
+  localStorage.setItem('lofi-master', val);
+});
+
+// ============================================================
+// Presets
+// ============================================================
+function loadBuiltinPreset(name) {
+  if (!audioCtx) return;
+  const preset = BUILTIN_PRESETS[name];
+  if (!preset) return;
+  applyPreset(preset);
+}
+
+function applyPreset(preset) {
+  SOUNDS.forEach(s => {
+    const vol = preset[s.id] || 0;
+    const slider = document.getElementById(`vol-${s.id}`);
+    slider.value = vol;
+    // Stop currently active sounds first
+    if (soundStates[s.id].active) {
+      soundStates[s.id].active = false;
+      soundNodes[s.id].gain.gain.value = 0;
+      soundNodes[s.id].stop();
+      soundNodes[s.id] = createSoundEngine(s.id);
+      document.getElementById(`toggle-${s.id}`).classList.remove('active');
+      document.getElementById(`card-${s.id}`).classList.remove('active');
+    }
+    soundStates[s.id].volume = vol;
+    document.getElementById(`val-${s.id}`).textContent = vol + '%';
+
+    if (vol > 0) {
+      soundStates[s.id].active = true;
+      document.getElementById(`toggle-${s.id}`).classList.add('active');
+      document.getElementById(`card-${s.id}`).classList.add('active');
+      soundNodes[s.id].start();
+      soundNodes[s.id].gain.gain.linearRampToValueAtTime(vol / 100, audioCtx.currentTime + 0.5);
+    }
+  });
+  saveToStorage();
+}
+
+function getCurrentPreset() {
+  const preset = {};
+  SOUNDS.forEach(s => { preset[s.id] = soundStates[s.id].volume; });
+  return preset;
+}
+
+function showSaveModal() {
+  document.getElementById('save-modal').style.display = 'flex';
+  document.getElementById('preset-name-input').value = '';
+  document.getElementById('preset-name-input').focus();
+}
+
+function hideSaveModal() {
+  document.getElementById('save-modal').style.display = 'none';
+}
+
+function savePreset() {
+  const name = document.getElementById('preset-name-input').value.trim();
+  if (!name) return;
+  const presets = JSON.parse(localStorage.getItem('lofi-presets') || '{}');
+  presets[name] = getCurrentPreset();
+  localStorage.setItem('lofi-presets', JSON.stringify(presets));
+  hideSaveModal();
+  renderUserPresets();
+}
+
+function deleteUserPreset(name) {
+  const presets = JSON.parse(localStorage.getItem('lofi-presets') || '{}');
+  delete presets[name];
+  localStorage.setItem('lofi-presets', JSON.stringify(presets));
+  renderUserPresets();
+}
+
+function renderUserPresets() {
+  const container = document.getElementById('user-presets');
+  const presets = JSON.parse(localStorage.getItem('lofi-presets') || '{}');
+  container.innerHTML = '';
+  Object.keys(presets).forEach(name => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex items-center gap-1';
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn';
+    btn.textContent = '🎧 ' + name;
+    btn.onclick = () => { if (audioCtx) applyPreset(presets[name]); };
+    const del = document.createElement('button');
+    del.className = 'preset-btn text-xs';
+    del.textContent = '×';
+    del.style.padding = '10px 10px';
+    del.style.opacity = '0.5';
+    del.onclick = () => deleteUserPreset(name);
+    wrapper.appendChild(btn);
+    wrapper.appendChild(del);
+    container.appendChild(wrapper);
+  });
+}
+renderUserPresets();
+
+// ============================================================
+// LocalStorage persistence
+// ============================================================
+function saveToStorage() {
+  const data = {
+    states: {},
+    master: parseInt(document.getElementById('master-volume').value),
+  };
+  SOUNDS.forEach(s => {
+    data.states[s.id] = { active: soundStates[s.id].active, volume: soundStates[s.id].volume };
+  });
+  localStorage.setItem('lofi-session', JSON.stringify(data));
+}
+
+function loadFromStorage() {
+  const raw = localStorage.getItem('lofi-session');
+  if (!raw) return;
+  try {
+    const data = JSON.parse(raw);
+    if (data.master !== undefined) {
+      document.getElementById('master-volume').value = data.master;
+      document.getElementById('master-value').textContent = data.master + '%';
+      masterGain.gain.value = data.master / 100;
+    }
+    if (data.states) {
+      const preset = {};
+      SOUNDS.forEach(s => {
+        const st = data.states[s.id];
+        if (st && st.active) {
+          preset[s.id] = st.volume;
+        } else {
+          preset[s.id] = 0;
+        }
+      });
+      applyPreset(preset);
+    }
+  } catch(e) {}
+
+  const savedMaster = localStorage.getItem('lofi-master');
+  if (savedMaster !== null) {
+    const val = parseInt(savedMaster);
+    document.getElementById('master-volume').value = val;
+    document.getElementById('master-value').textContent = val + '%';
+    masterGain.gain.value = val / 100;
+  }
+}
+</script>
+</body>
+</html>
